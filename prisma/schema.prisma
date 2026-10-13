@@ -1,0 +1,210 @@
+// Prisma schema for the NestJS backend starter.
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+}
+
+enum Category {
+  SC
+  ST
+  OBC
+  GEN
+}
+
+enum Nationality {
+  INDIAN
+  OTHER
+}
+
+enum StudentStatus {
+  ACTIVE
+  DISCHARGED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  PROMOTED
+  REPEATED
+  LEFT
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  firstName    String   @map("first_name")
+  lastName     String   @map("last_name")
+  role         Role     @default(TEACHER)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  teacher Teacher?
+
+  @@map("users")
+}
+
+model AcademicYear {
+  id        String   @id @default(uuid()) @db.Uuid
+  label     String   @unique
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  isCurrent Boolean  @default(false) @map("is_current")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  classes     Class[]
+  enrollments Enrollment[]
+
+  @@map("academic_years")
+}
+
+model Class {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String
+  section        String
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  classTeacherId String?  @map("class_teacher_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  academicYear     AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  classTeacher     Teacher?     @relation(fields: [classTeacherId], references: [id], onDelete: SetNull)
+  enrollments      Enrollment[]
+  admittedStudents Student[]
+
+  @@unique([academicYearId, name, section])
+  @@map("classes")
+}
+
+model Teacher {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @unique @map("user_id") @db.Uuid
+  employeeCode  String?   @unique @map("employee_code")
+  phone         String?
+  address       String?
+  qualification String?
+  joiningDate   DateTime? @map("joining_date") @db.Date
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classesTaught Class[]
+
+  @@map("teachers")
+}
+
+model Student {
+  id String @id @default(uuid()) @db.Uuid
+
+  // Candidate particulars
+  fullName           String      @map("full_name")
+  fullNameHindi      String?     @map("full_name_hindi")
+  photoUrl           String?     @map("photo_url")
+  dateOfBirth        DateTime    @map("date_of_birth") @db.Date
+  admissionForClass  String      @map("admission_for_class")
+  category           Category
+  caste              String?
+  motherTongue       String?     @map("mother_tongue")
+  religion           String?
+  nationality        Nationality @default(INDIAN)
+  aadharNumber       String?     @unique @map("aadhar_number")
+  samagraId          String?     @unique @map("samagra_id")
+  samagraFamilyId    String?     @map("samagra_family_id")
+  mobileNumber       String?     @map("mobile_number")
+  residentialAddress String      @map("residential_address")
+
+  // Previous school info (admission into class 2nd and onward)
+  previousClassPassed   String? @map("previous_class_passed")
+  previousMarksObtained String? @map("previous_marks_obtained")
+  previousSchoolName    String? @map("previous_school_name")
+
+  // Parent info — father
+  fatherName          String  @map("father_name")
+  fatherNameHindi     String? @map("father_name_hindi")
+  fatherAadhar        String? @map("father_aadhar")
+  fatherMobile        String? @map("father_mobile")
+  fatherQualification String? @map("father_qualification")
+  fatherOccupation    String? @map("father_occupation")
+
+  // Parent info — mother
+  motherName          String  @map("mother_name")
+  motherNameHindi     String? @map("mother_name_hindi")
+  motherAadhar        String? @map("mother_aadhar")
+  motherMobile        String? @map("mother_mobile")
+  motherQualification String? @map("mother_qualification")
+  motherOccupation    String? @map("mother_occupation")
+
+  // Family financial info
+  familyMonthlyIncome Decimal? @map("family_monthly_income") @db.Decimal(12, 2)
+  bankName            String?  @map("bank_name")
+  bankBranch          String?  @map("bank_branch")
+  bankIfscCode        String?  @map("bank_ifsc_code")
+  bankAccountNumber   String?  @map("bank_account_number")
+
+  // Documents submitted checklist
+  docDobCertificate   Boolean @default(false) @map("doc_dob_certificate")
+  docCasteCertificate Boolean @default(false) @map("doc_caste_certificate")
+  docSamagraId        Boolean @default(false) @map("doc_samagra_id")
+  docAadharCard       Boolean @default(false) @map("doc_aadhar_card")
+  docBplCard          Boolean @default(false) @map("doc_bpl_card")
+  docBankAccount      Boolean @default(false) @map("doc_bank_account")
+  docTcAndMarksheet   Boolean @default(false) @map("doc_tc_and_marksheet")
+  docPassportPhotos   Boolean @default(false) @map("doc_passport_photos")
+
+  // Office use / admission processing
+  eligibleForAdmission Boolean? @map("eligible_for_admission")
+
+  // Additional national/state IDs
+  aaparId     String? @unique @map("aapar_id")
+  ladliNumber String? @unique @map("ladli_number")
+
+  // Admission & Discharge register fields
+  scholarNumber    String        @unique @map("scholar_number")
+  admissionDate    DateTime      @map("admission_date") @db.Date
+  admissionClassId String        @map("admission_class_id") @db.Uuid
+  status           StudentStatus @default(ACTIVE)
+  dischargeDate    DateTime?     @map("discharge_date") @db.Date
+  dischargeClass   String?       @map("discharge_class")
+  dischargeCause   String?       @map("discharge_cause")
+  remarks          String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  admissionClass Class        @relation(fields: [admissionClassId], references: [id], onDelete: Restrict)
+  enrollments    Enrollment[]
+
+  @@map("students")
+}
+
+model Enrollment {
+  id             String           @id @default(uuid()) @db.Uuid
+  studentId      String           @map("student_id") @db.Uuid
+  classId        String           @map("class_id") @db.Uuid
+  academicYearId String           @map("academic_year_id") @db.Uuid
+  rollNumber     String           @map("roll_number")
+  enrollmentDate DateTime         @default(now()) @map("enrollment_date") @db.Date
+  status         EnrollmentStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  class        Class        @relation(fields: [classId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, academicYearId])
+  @@unique([classId, rollNumber])
+  @@map("enrollments")
+}
